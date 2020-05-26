@@ -27,7 +27,7 @@ import socket
 import json
 import cv2
 import numpy as np
-from time import time
+import time
 
 import logging as log
 import paho.mqtt.client as mqtt
@@ -104,6 +104,7 @@ def infer_on_stream(args, client):
     ### TODO: Load the model through `infer_network` ###
     inference_network.load_model(args.model, args.device, args.cpu_extension)
     net_input_shape=inference_network.get_input_shape()
+    log.warning("Input Shape"+str(net_input_shape))
     ### TODO: Handle the input stream ###
     cap = cv2.VideoCapture(args.input)
     cap.open(args.input)
@@ -112,7 +113,8 @@ def infer_on_stream(args, client):
     height = int(cap.get(4))
     current_count = 0
     last_count = 0
-    
+    total_count = 0
+    missing_frame=0
     ### TODO: Loop until stream is over ###
     while cap.isOpened():
         
@@ -128,29 +130,35 @@ def infer_on_stream(args, client):
                         
 
         ### TODO: Start asynchronous inference for specified request ###
-        inference_network.exec_net(p_frame)
+        inputs = {
+            'image_tensor' : p_frame,
+            'image_info': (height, width, 1) } 
+        inference_network.exec_net(inputs)
 
         ### TODO: Wait for the result ###
         if inference_network.wait() == 0:
             
             ### TODO: Get the results of the inference request ###
             result = inference_network.extract_output()
+            
+            current_count = 0
             for box in result[0][0]: # result shape is 1x1xNx7 where N is detected bounding boxes
                 conf = box[2]
                 if conf >= prob_threshold:
+                    missing_frame=0
                     xmin = int(box[3] * width)
                     ymin = int(box[4] * height)
                     xmax = int(box[5] * width)
                     ymax = int(box[6] * height)
-                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 125, 255), 3)
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 125, 255), 1)
+                    current_count+=1
             
-                    if ymax==height:
-                        log.warning("Person is entered"+str(ymax)+" "+str(xmax))
-                    if xmax==width:
-                        log.warning("Person is exit"+str(ymax)+" "+str(xmax))
-            
+            if current_count==0:
+                missing_frame+=1
+                log.warning("Missing Frame"+str(missing_frame))
             ### TODO: Extract any desired stats from the results ###
             if current_count>last_count:
+                log.warning("Person is entered"+str(current_count)+ " : "+str(last_count))
                 start_time = time.time()
                 total_count += current_count-last_count
                 client.publish('person', json.dumps({"total": total_count}))
@@ -188,10 +196,10 @@ def main():
     # Connect to the MQTT server
     client = connect_mqtt()
     # Perform inference on the input stream
-    infer_time = time()
+    infer_time = time.time()
     # Infer
     infer_on_stream(args, client)
-    time_took = time() - infer_time
+    time_took = time.time() - infer_time
     log.info("Inference Time took"+str(time_took))
 if __name__ == '__main__':
     main()

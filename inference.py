@@ -81,12 +81,12 @@ class Network:
         """
         return self.network.inputs[self.input_blob].shape
 
-    def exec_net(self):
+    def exec_net(self, inputs):
         """
         Makes an asynchronious inference request, given an input request
         """
         return self.exec_network.start_async(request_id=0,
-                                            input={self.input_blob:image})
+                                            inputs=inputs)
 
     def wait(self):
         """
@@ -94,7 +94,7 @@ class Network:
         """
         return self.exec_network.requests[0].wait(-1)
 
-    def get_output(self):
+    def extract_output(self):
         """
         returns the list of results of output layer of network
         """
