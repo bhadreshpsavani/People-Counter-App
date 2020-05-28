@@ -49,12 +49,9 @@ class Network:
         Defaults to CPU as device for use in the workspace.
         Synchronous requests made within.
         '''
-        ### TODO: Load the model ###
+        ### Load the model ###
         model_xml=model
         model_bin=os.path.splitext(model_xml)[0]+'.bin'
-        
-        ### TODO: Check for supported layers ###
-        ### TODO: Add any necessary extensions ###
         
         ### Add Plugin###
         self.plugin=IECore()
@@ -66,6 +63,13 @@ class Network:
         ### Read the IR as a IENetwork
         self.network = IENetwork(model=model_xml, weights=model_bin)
         
+        ### Check supported layer
+        supported_layers = self.plugin.get_supported_layers(self.net)
+        unsupported_layer =  [l for l in self.net.layers.keys() if l not in supported_layers]
+        if len(unsupported_layer)!=0:
+            log.error('We got unsupported Layers {}'.format(unsupported_layer));
+            log.error('We need to add extension for unsupported layer');
+            exit(1);
         ### Load IENetwork into the plugin ###
         self.exec_network = self.plugin.load_network(self.network, device)
         
@@ -86,7 +90,7 @@ class Network:
         Makes an asynchronious inference request, given an input request
         """
         return self.exec_network.start_async(request_id=0,
-                                            inputs=inputs)
+                                            inputs={self.input_blob:inputs})
 
     def wait(self):
         """

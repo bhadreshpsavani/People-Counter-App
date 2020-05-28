@@ -64,7 +64,4 @@ Acceptable Duration:
 https://knowledge.udacity.com/questions/168549
 
 
-https://github.com/Rishit-dagli/People-Counter-On-Edge
-
-
 ssd_mobilenet_v2_coco and ssdlite_mobilenet_v2_coco_2018_05_09 are not detecting person for more than 170 frames

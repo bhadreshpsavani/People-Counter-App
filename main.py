@@ -97,51 +97,64 @@ def infer_on_stream(args, client):
     :return: None
     """
     
+    # Initialize all requuired variables
+    last_count = 0
+    total_count = 0
+    missing_frame = 0
+    last_missed_frames = 0
+    single_image_mode = False
+    
     # Initialise the class
     inference_network = Network()
+    
     # Set Probability threshold for detections
     prob_threshold = args.prob_threshold
-    ### TODO: Load the model through `infer_network` ###
+    
+    ### Load the model through `infer_network` ###
     inference_network.load_model(args.model, args.device, args.cpu_extension)
     net_input_shape=inference_network.get_input_shape()
-    log.warning("Input Shape"+str(net_input_shape))
-    ### TODO: Handle the input stream ###
+    
+    # Handle CAM input
+    if args.input == 'CAM':
+        input_stream = 0
+    # Check if Image    
+    elif args.input.endswith('.jpg') or args.input.endswith('.bmp') or args.input.endswith('.jpeg') or args.input.endswith('.png'):
+        single_image_mode = True
+        input_stream = args.input
+    else:
+        input_stream = args.input
+        
+    ### Handle the input stream ###
     cap = cv2.VideoCapture(args.input)
+    
     cap.open(args.input)
     
     width = int(cap.get(3))
     height = int(cap.get(4))
-    current_count = 0
-    last_count = 0
-    total_count = 0
-    missing_frame=0
-    ### TODO: Loop until stream is over ###
+    
+    ### Loop until stream is over ###
     while cap.isOpened():
         
-        ### TODO: Read from the video capture ###
+        ### Read from the video capture ###
         flag, frame = cap.read()
         if not flag:
             break
                    
-        ### TODO: Pre-process the image as needed ###
+        ### Pre-process the image as needed ###
         p_frame = cv2.resize(frame, (net_input_shape[3], net_input_shape[2]))
         p_frame = p_frame.transpose((2,0,1))
         p_frame = p_frame.reshape(1, *p_frame.shape)
                         
 
-        ### TODO: Start asynchronous inference for specified request ###
-        inputs = {
-            'image_tensor' : p_frame,
-            'image_info': (height, width, 1) } 
-        inference_network.exec_net(inputs)
+        ### Start asynchronous inference for specified request ###
+        inference_network.exec_net(p_frame)
 
-        ### TODO: Wait for the result ###
+        ### Wait for the result ###
         if inference_network.wait() == 0:
-            
-            ### TODO: Get the results of the inference request ###
+                   
+            ### Get the results of the inference request ###
+            is_person_detected = False
             result = inference_network.extract_output()
-            
-            current_count = 0
             for box in result[0][0]: # result shape is 1x1xNx7 where N is detected bounding boxes
                 conf = box[2]
                 if conf >= prob_threshold:
@@ -151,35 +164,47 @@ def infer_on_stream(args, client):
                     xmax = int(box[5] * width)
                     ymax = int(box[6] * height)
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 125, 255), 1)
-                    current_count+=1
-            
-            if current_count==0:
+                    is_person_detected = True
+                    
+            ### Extract any desired stats from the results ###
+            if not is_person_detected:
+                current_count = 0
                 missing_frame+=1
                 log.warning("Missing Frame"+str(missing_frame))
-            ### TODO: Extract any desired stats from the results ###
-            if current_count>last_count:
+            
+            elif last_missed_frames>30:
+                current_count=1
                 log.warning("Person is entered"+str(current_count)+ " : "+str(last_count))
+    
+            ### Calculate and send relevant information on ###
+            ### current_count, total_count and duration to the MQTT server ###
+            if current_count>last_count:
                 start_time = time.time()
                 total_count += current_count-last_count
+                 ### Topic "person": keys of "count" and "total" ###
                 client.publish('person', json.dumps({"total": total_count}))
-            elif current_count<last_count:
+                log.warning("Total Counts"+str(total_count))
+
+            if current_count<last_count:
                 duration = int(time.time()-start_time)
+                 ### Topic "person/duration": key of "duration" ###
                 client.publish('person/duration', json.dumps({"duration": duration}))
-            client.publish('person/duration', json.dumps({"count": current_count}))
-            last_count = current_count
+                log.warning("Duration"+str(duration))
             
-            ### TODO: Calculate and send relevant information on ###
-            ### current_count, total_count and duration to the MQTT server ###
             ### Topic "person": keys of "count" and "total" ###
-            ### Topic "person/duration": key of "duration" ###
+            client.publish('person', json.dumps({"count": current_count}))
+            last_count = current_count
+            last_missed_frames = missing_frame
             
             
-        ### TODO: Send the frame to the FFMPEG server ###
+        ### Send the frame to the FFMPEG server ###
         sys.stdout.buffer.write(frame)
         sys.stdout.flush()
         
-        ### TODO: Write an output image if `single_image_mode` ###
-        
+        ### Write an output image if `single_image_mode` ###
+        if single_image_mode:
+            cv2.imwrite('output_image.jpg', frame)
+            
     #realease capture and destroy all window
     cap.release()
     cv2.destroyAllWindows()
@@ -201,5 +226,6 @@ def main():
     infer_on_stream(args, client)
     time_took = time.time() - infer_time
     log.info("Inference Time took"+str(time_took))
+    
 if __name__ == '__main__':
     main()
