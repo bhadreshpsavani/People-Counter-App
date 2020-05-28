@@ -102,6 +102,7 @@ def infer_on_stream(args, client):
     total_count = 0
     missing_frame = 0
     last_missed_frames = 0
+    total_frame = 0
     single_image_mode = False
     
     # Initialise the class
@@ -123,12 +124,17 @@ def infer_on_stream(args, client):
         input_stream = args.input
     else:
         input_stream = args.input
+        #if file not found generate exception
+        assert os.path.isfile(args.input), "Given input file doesn't exist"
         
     ### Handle the input stream ###
     cap = cv2.VideoCapture(args.input)
     
     cap.open(args.input)
     
+    if not cap.isOpened():
+        log.error("ERROR! Unable to open video source")
+        
     width = int(cap.get(3))
     height = int(cap.get(4))
     
@@ -137,21 +143,28 @@ def infer_on_stream(args, client):
         
         ### Read from the video capture ###
         flag, frame = cap.read()
+        total_frame += 1
         if not flag:
             break
-                   
+                      
         ### Pre-process the image as needed ###
         p_frame = cv2.resize(frame, (net_input_shape[3], net_input_shape[2]))
         p_frame = p_frame.transpose((2,0,1))
         p_frame = p_frame.reshape(1, *p_frame.shape)
                         
-
+    
         ### Start asynchronous inference for specified request ###
+        initial_time = time.time()
         inference_network.exec_net(p_frame)
 
         ### Wait for the result ###
         if inference_network.wait() == 0:
-                   
+            
+            ### get inference time
+            inference_time = time.time() - initial_time
+            inference_time_message = "Inference time is: {:.3f}ms" .format(inference_time * 1000)
+            cv2.putText(frame, inference_time_message, (15, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (200, 10, 10), 1)
+            
             ### Get the results of the inference request ###
             is_person_detected = False
             result = inference_network.extract_output()
@@ -163,9 +176,10 @@ def infer_on_stream(args, client):
                     ymin = int(box[4] * height)
                     xmax = int(box[5] * width)
                     ymax = int(box[6] * height)
-                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 125, 255), 1)
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (200, 10, 10), 1)
                     is_person_detected = True
-                    
+            
+            
             ### Extract any desired stats from the results ###
             if not is_person_detected:
                 current_count = 0
@@ -173,7 +187,8 @@ def infer_on_stream(args, client):
                 log.warning("Missing Frame"+str(missing_frame))
             
             elif last_missed_frames>30:
-                current_count=1
+                current_count = 1
+                total_frame =1 
                 log.warning("Person is entered"+str(current_count)+ " : "+str(last_count))
     
             ### Calculate and send relevant information on ###
@@ -186,7 +201,8 @@ def infer_on_stream(args, client):
                 log.warning("Total Counts"+str(total_count))
 
             if current_count<last_count:
-                duration = int(time.time()-start_time)
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                duration = total_frame/ fps
                  ### Topic "person/duration": key of "duration" ###
                 client.publish('person/duration', json.dumps({"duration": duration}))
                 log.warning("Duration"+str(duration))

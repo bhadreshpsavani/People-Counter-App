@@ -66,6 +66,8 @@ I have explained the details of models I experimented with.
 
 ### Inference Time
 
+I have obtained inference time using `time.time()` by getting the value time instance before and after inference and took the difference of of that values.
+
 | |SSD MobileNet V2|YOLO V3 Tiny|Faster RCNN Inception V2 COCO|
 |-|-|-|-|
 |Before Conversion|50 ms|45 ms| 336 ms|

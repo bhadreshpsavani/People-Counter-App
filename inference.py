@@ -64,12 +64,14 @@ class Network:
         self.network = IENetwork(model=model_xml, weights=model_bin)
         
         ### Check supported layer
-        supported_layers = self.plugin.get_supported_layers(self.net)
-        unsupported_layer =  [l for l in self.net.layers.keys() if l not in supported_layers]
+        supported_layers = self.plugin.query_network(network=self.network, device_name=device)
+        
+        unsupported_layer =  [l for l in self.network.layers.keys() if l not in supported_layers]
         if len(unsupported_layer)!=0:
             log.error('We got unsupported Layers {}'.format(unsupported_layer));
             log.error('We need to add extension for unsupported layer');
             exit(1);
+            
         ### Load IENetwork into the plugin ###
         self.exec_network = self.plugin.load_network(self.network, device)
         
@@ -85,11 +87,11 @@ class Network:
         """
         return self.network.inputs[self.input_blob].shape
 
-    def exec_net(self, inputs):
+    def exec_net(self, inputs, request_id = 0):
         """
         Makes an asynchronious inference request, given an input request
         """
-        return self.exec_network.start_async(request_id=0,
+        return self.exec_network.start_async(request_id= request_id,
                                             inputs={self.input_blob:inputs})
 
     def wait(self):
