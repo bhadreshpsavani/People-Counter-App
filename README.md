@@ -1,190 +1,202 @@
-# People-Counter-App
+# Deploy a People Counter App at the Edge
 
-This project is to detect and count person in the video, We will use person detection model and convert it to an Intermediate Representation for use with the Model Optimizer. 
-We will extract useful data concerning the count of people in frame and how long they stay in frame. We will also send data data over MQTT, as well as sending the output frame, in order to view it froma separate UI server over a network.
+| Details            |              |
+|-----------------------|---------------|
+| Programming Language: |  Python 3.5 or 3.6 |
 
-## Explaining Custom Layers in OpenVINO™:
-Layers which are [Supported Layer List](https://docs.openvinotoolkit.org/2019_R3/_docs_MO_DG_prepare_model_Supported_Frameworks_Layers.html) are Unsupported Layers, This layers are classified as Custom layer by Model Optimizer.
+![people-counter-python](./images/people-counter-image.png)
 
-### Process to handle Custom layers:
-We need to handle it according to the framework,
+## What it Does
 
-TensorFlow Framework Model we have three ways to handle custom layer,
-1. Register the custom layers as extensions to the Model Optimizer
-2. Replace the unsupported subgraph with a different subgraph
-3. offload the computation of the subgraph back to TensorFlow during inference
+The people counter application will demonstrate how to create a smart video IoT solution using Intel® hardware and software tools. The app will detect people in a designated area, providing the number of people in the frame, average duration of people in frame, and total count.
 
-Caffe Model we can handle custom layer by Two ways,
-1. Register the custom layers as extensions to the Model Optimizer.
-2. Register the layers as Custom, then use Caffe to calculate the output shape of the layer
+## How it Works
 
-#### Custom Layer Implementation Workflow:
+The counter will use the Inference Engine included in the Intel® Distribution of OpenVINO™ Toolkit. The model used should be able to identify people in a video frame. The app should count the number of people in the current frame, the duration that a person is in the frame (time elapsed between entering and exiting a frame) and the total count of people. It then sends the data to a local web server using the Paho MQTT Python package.
 
-The Model Optimizer starts with a library of known extractors and operations for each supported model framework which must be extended to use each unknown custom layer. The custom layer extensions needed by the Model Optimizer are:
+You will choose a model to use and convert it with the Model Optimizer.
 
-* Custom Layer Extractor: Responsible for identifying the custom layer operation and extracting the parameters for each instance of the custom layer. The layer parameters are stored per instance and used by the layer operation before finally appearing in the output IR. Typically the input layer parameters are unchanged, which is the case covered by this tutorial.
+![architectural diagram](./images/arch_diagram.png)
 
-* Custom Layer Operation: Responsible for specifying the attributes that are supported by the custom layer and computing the output shape for each instance of the custom layer from its parameters. The --mo-op command-line argument shown in the examples below generates a custom layer operation for the Model Optimizer.
-    ```
-    The script for this is available here-
-  /opt/intel/openvino/deployment_tools/tools/extension_generator/extgen.py
+## Requirements
+
+### Hardware
+
+* 6th to 10th generation Intel® Core™ processor with Iris® Pro graphics or Intel® HD Graphics.
+* OR use of Intel® Neural Compute Stick 2 (NCS2)
+* OR Udacity classroom workspace for the related course
+
+### Software
+
+*   Intel® Distribution of OpenVINO™ toolkit 2019 R3 release
+*   Node v6.17.1
+*   Npm v3.10.10
+*   CMake
+*   MQTT Mosca server
   
-  usage: You can use any combination of the following arguments:
+        
+## Setup
 
-    Arguments to configure extension generation in the interactive mode:
-    
-    optional arguments:
-      -h, --help            show this help message and exit
-      --mo-caffe-ext        generate a Model Optimizer Caffe* extractor
-      --mo-mxnet-ext        generate a Model Optimizer MXNet* extractor
-      --mo-tf-ext           generate a Model Optimizer TensorFlow* extractor
-      --mo-op               generate a Model Optimizer operation
-      --ie-cpu-ext          generate an Inference Engine CPU extension
-      --ie-gpu-ext          generate an Inference Engine GPU extension
-      --output_dir OUTPUT_DIR
-                            set an output directory. If not specified, the current
-                            directory is used by default.
-    ```
+### Install Intel® Distribution of OpenVINO™ toolkit
 
-Detailed Process of handling custom layer can be found in this [documentation](https://docs.openvinotoolkit.org/2019_R3.1/_docs_HOWTO_Custom_Layers_Guide.html)
+Utilize the classroom workspace, or refer to the relevant instructions for your operating system for this step.
 
-### Potential reasons for handling custom layer:
+- [Linux/Ubuntu](./linux-setup.md)
+- [Mac](./mac-setup.md)
+- [Windows](./windows-setup.md)
 
-Sometimes we are working on some research based project in which we uses models with the layers which are not supported layers of Model Optimizer, For running our application perfectly smooth on Edge we need to know how we can handle such layers.
+### Install Nodejs and its dependencies
 
-## Comparing Model Performance
+Utilize the classroom workspace, or refer to the relevant instructions for your operating system for this step.
 
-I used model from Intel OpenVino Model Zoo due to poor performance of converted models.  
-I have explained the details of models I experimented with.
+- [Linux/Ubuntu](./linux-setup.md)
+- [Mac](./mac-setup.md)
+- [Windows](./windows-setup.md)
 
-### Model size
+### Install npm
 
-| |SSD MobileNet V2|YOLO V3 Tiny|Faster RCNN Inception V2 COCO|
-|-|-|-|-|
-|Before Conversion|67 MB|34 MB|55 MB|
-|After Conversion|65 MB|32 MB|52 MB|
+There are three components that need to be running in separate terminals for this application to work:
 
-### Inference Time
+-   MQTT Mosca server 
+-   Node.js* Web server
+-   FFmpeg server
+     
+From the main directory:
 
-| |SSD MobileNet V2|YOLO V3 Tiny|Faster RCNN Inception V2 COCO|
-|-|-|-|-|
-|Before Conversion|50 ms|45 ms| 336 ms|
-|After Conversion|60 ms|50 ms| 345 ms|
+* For MQTT/Mosca server:
+   ```
+   cd webservice/server
+   npm install
+   ```
 
-## Assess Model Use Cases
+* For Web server:
+  ```
+  cd ../ui
+  npm install
+  ```
+  **Note:** If any configuration errors occur in mosca server or Web server while using **npm install**, use the below commands:
+   ```
+   sudo npm install npm -g 
+   rm -rf node_modules
+   npm cache clean
+   npm config set registry "http://registry.npmjs.org"
+   npm install
+   ```
 
-### Case 1. **Corona Smart Surveillance integrated with Drone**: 
-Countries like india in this pandemic time, movement of people are analysed by drones manually,
-If we integrate our People Counter App with it. 
-* If more people are gathered this app will generate alert with location indices,
-* Police can go to the location and restrict the movement
-* This will reduce manual effort of surveillance and save cost 
-* This will also reduce human error
-* This same application can be used in **curfew time** to restrict movement
+## What model to use
 
-### 2. **Smart Queue Management System**: 
-Our project can be used in smart queue system,
-* It can help to Optimize Products and Employees based on length of queue,
-* Products and Employee optimization can lead to higher revenue,
-* Management person can easily manage remotely if such system is used
+It is up to you to decide on what model to use for the application. You need to find a model not already converted to Intermediate Representation format (i.e. not one of the Intel® Pre-Trained Models), convert it, and utilize the converted model in your application.
 
-### 3. **Security Application in Industry for safety**: 
-In many industries human movements are restricted in some toxic area,
-* Our application can be deployed in such area. if any human detected siren will be ON.
-* This is the AI that can save life.
+Note that you may need to do additional processing of the output to handle incorrect detections, such as adjusting confidence threshold or accounting for 1-2 frames where the model fails to see a person already counted and would otherwise double count.
 
-### 4. **Road Safety Surveillance**: 
-This application can be deployed to computer with traffic surveillance camera,
-*  We can count number of people in the vehicles by training model on this real dataset, If count of people is more than safety limit of vehicle, fine will be sent to the owner of vehicle. 
-*  This will help us to force people follow rules of traffic
+**If you are otherwise unable to find a suitable model after attempting and successfully converting at least three other models**, you can document in your write-up what the models were, how you converted them, and why they failed, and then utilize any of the Intel® Pre-Trained Models that may perform better.
 
-## Assess Effects on End User Needs
+## Run the application
 
-Lighting, model accuracy, and camera focal length/image size have different effects on a
-deployed edge model:
+From the main directory:
 
-Lighting: Different lighting condition will surely impact our application. It also can lead to zero detection. To tackle this problem, we can do some image pre-processing steps before feeding images to model for inference
+### Step 1 - Start the Mosca server
 
-Model Accuracy: We will not get desired accuracy for all the times. We might need need to train model according to application. This custom model tested for custom application will surely works better because it is trained on real life dataset.
-
-Camera focal length/image size: Different image size can be handle using resizing the image step while preprocessing images before inference but again this might lead to lead to less accuracy. We can use model trained for that image size  or use custom model trained for specific application
- 
-
-## Model Research
-
-In investigating potential people counter models, I tried each of the following three models:
-
-- ### Model 1.  [SSD MobileNet V2](https://github.com/opencv/open_model_zoo/blob/master/models/public/ssd_mobilenet_v2_coco/ssd_mobilenet_v2_coco.md):
-  - I have downloaded this model from Tensorflow site with following command in the terminal,
-      ```
-      #download model
-      wget http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v2_coco_2018_03_29.tar.gz
-      #extracted using below commanad
-      tar -xvf ssd_mobilenet_v2_coco_2018_03_29.tar.gz
-      ```
-  - I converted the model to an Intermediate Representation with the following command,
-      ```
-      python /opt/intel/openvino/deployment_tools/model_optimizer/mo.py --input_model ssd_mobilenet_v2_coco_2018_03_29/frozen_inference_graph.pb --tensorflow_object_detection_api_pipeline_config ssd_mobilenet_v2_coco_2018_03_29/pipeline.config --reverse_input_channels --tensorflow_use_custom_operations_config /opt/intel/openvino/deployment_tools/model_optimizer/extensions/front/tf/ssd_v2_support.json
-      ```
-  - The model was insufficient for the app because it was giving me around 180 missing frames for one person, detection accuracy was very acceptable.
-  - I tried to improve count detection using techniques like detecting person only when they enter in the frame from one side but due to low accuracy detection was not proper.  
-  
-- ### Model 2. [YOLO V3 Tinyll](https://github.com/opencv/open_model_zoo/blob/master/models/public/yolo-v3-tf/yolo-v3-tf.md):
-  I have followed the [official documentation](https://docs.openvinotoolkit.org/latest/_docs_MO_DG_prepare_model_convert_model_tf_specific_Convert_YOLO_From_Tensorflow.html) for using YOLOV3 by openvinotoolkit.org
-  Here are the steps,
-  1. Clone the Repo: 
-        ```
-        git clone https://github.com/mystic123/tensorflow-yolo-v3.git
-        cd tensorflow-yolo-v3
-        ```
-  2. checkout tested commit:
-      ` git checkout ed60b90`
-
-  3. Download weights and labels:
-      ```
-      wget https://raw.githubusercontent.com/pjreddie/darknet/master/data/coco.names
-      wget https://pjreddie.com/media/files/yolov3-tiny.weights 
-      ```
-  4. Run Converter: to get weights in to pb file
-      ```
-      python3 convert_weights_pb.py --class_names coco.names --data_format NHWC --weights_file yolov3-tiny.weights --tiny
-      ```
-  5. Convert YOLOv3 TensorFlow Model to the IR:
-      ```
-      python3 /opt/intel/openvino/deployment_tools/model_optimizer/mo.py  --input_model yolov3.pb --tensorflow_use_custom_operations_config /opt/intel/openvino/deployment_tools/model_optimizer/extensions/front/tf/yolov3.json --batch 1
-      ```
-    
-  - Model Accuracy was not enough, i was getting around almost same detection with bit higher speed
-  - I tried to get proper count by skipping 160 missing frame when that person in black tshirt was not detected, i was getting proper count but that will not be acceptable because this might not be general solution  
-
-- ### Model 3. [Faster RCNN Inception V2 COCO](https://github.com/opencv/open_model_zoo/blob/master/models/public/faster_rcnn_inception_v2_coco/faster_rcnn_inception_v2_coco.md):
-  - I have downloaded this model from Tensorflow site with following command in the terminal,
-      ```
-      #download model
-     wget http://download.tensorflow.org/models/object_detection/faster_rcnn_inception_v2_coco_2018_01_28.tar.gz
-      #extracted using below commanad
-      tar -xvf faster_rcnn_inception_v2_coco_2018_01_28.tar.gz
-      ```
-  - I converted the model to an Intermediate Representation with the following command,
-      ```
-      python /opt/intel/openvino/deployment_tools/model_optimizer/mo.py --input_model faster_rcnn_inception_v2_coco_2018_01_28/frozen_inference_graph.pb --tensorflow_object_detection_api_pipeline_config faster_rcnn_inception_v2_coco_2018_01_28/pipeline.config --reverse_input_channels --tensorflow_use_custom_operations_config /opt/intel/openvino/deployment_tools/model_optimizer/extensions/front/tf/faster_rcnn_support.json
-      ```
-  - The model was insufficient for the app because of very low inference speed and less accuracy
-  - This model was really slow, i tried to skip inference for few frames and tried to improve performance but again accuracy beat me
-
-## Use of Intel Pretrained model:
-As we were not getting proper results using other models, I tried following two model from OpenVino Model Zoo,
-- [person-detection-retail-0002](https://docs.openvinotoolkit.org/latest/person-detection-retail-0002.html)
-- [person-detection-retail-0013](https://docs.openvinotoolkit.org/latest/_models_intel_person_detection_retail_0013_description_person_detection_retail_0013.html)
-
-For second one, i was getting higher accuracy,
-
-To download the model i used following code in the terminal:
 ```
-sudo /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/downloader.py --name person-detection-retail-0013 --precisions FP16  -o /home/workspace
-``` 
- 
-To Run the Inference on Video i use following command in the terminal:
+cd webservice/server/node-server
+node ./server.js
 ```
-python main.py -i resources/Pedestrian_Detect_2_1_1.mp4 -m intel/person-detection-retail-0013/FP16/person-detection-retail-0013.xml -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -d CPU -pt 0.6 | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm
+
+You should see the following message, if successful:
+```
+Mosca server started.
+```
+
+### Step 2 - Start the GUI
+
+Open new terminal and run below commands.
+```
+cd webservice/ui
+npm run dev
+```
+
+You should see the following message in the terminal.
+```
+webpack: Compiled successfully
+```
+
+### Step 3 - FFmpeg Server
+
+Open new terminal and run the below commands.
+```
+sudo ffserver -f ./ffmpeg/server.conf
+```
+
+### Step 4 - Run the code
+
+Open a new terminal to run the code. 
+
+#### Setup the environment
+
+You must configure the environment to use the Intel® Distribution of OpenVINO™ toolkit one time per session by running the following command:
+```
+source /opt/intel/openvino/bin/setupvars.sh -pyver 3.5
+```
+
+You should also be able to run the application with Python 3.6, although newer versions of Python will not work with the app.
+
+#### Running on the CPU
+
+When running Intel® Distribution of OpenVINO™ toolkit Python applications on the CPU, the CPU extension library is required. This can be found at: 
+
+```
+/opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/
+```
+
+*Depending on whether you are using Linux or Mac, the filename will be either `libcpu_extension_sse4.so` or `libcpu_extension.dylib`, respectively.* (The Linux filename may be different if you are using a AVX architecture)
+
+Though by default application runs on CPU, this can also be explicitly specified by ```-d CPU``` command-line argument:
+
+```
+python main.py -i resources/Pedestrian_Detect_2_1_1.mp4 -m your-model.xml -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -d CPU -pt 0.6 | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm
+```
+If you are in the classroom workspace, use the “Open App” button to view the output. If working locally, to see the output on a web based interface, open the link [http://0.0.0.0:3004](http://0.0.0.0:3004/) in a browser.
+
+#### Running on the Intel® Neural Compute Stick
+
+To run on the Intel® Neural Compute Stick, use the ```-d MYRIAD``` command-line argument:
+
+```
+python3.5 main.py -d MYRIAD -i resources/Pedestrian_Detect_2_1_1.mp4 -m your-model.xml -pt 0.6 | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm
+```
+
+To see the output on a web based interface, open the link [http://0.0.0.0:3004](http://0.0.0.0:3004/) in a browser.
+
+**Note:** The Intel® Neural Compute Stick can only run FP16 models at this time. The model that is passed to the application, through the `-m <path_to_model>` command-line argument, must be of data type FP16.
+
+#### Using a camera stream instead of a video file
+
+To get the input video from the camera, use the `-i CAM` command-line argument. Specify the resolution of the camera using the `-video_size` command line argument.
+
+For example:
+```
+python main.py -i CAM -m your-model.xml -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -d CPU -pt 0.6 | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm
+```
+
+To see the output on a web based interface, open the link [http://0.0.0.0:3004](http://0.0.0.0:3004/) in a browser.
+
+**Note:**
+User has to give `-video_size` command line argument according to the input as it is used to specify the resolution of the video or image file.
+
+## A Note on Running Locally
+
+The servers herein are configured to utilize the Udacity classroom workspace. As such,
+to run on your local machine, you will need to change the below file:
+
+```
+webservice/ui/src/constants/constants.js
+```
+
+The `CAMERA_FEED_SERVER` and `MQTT_SERVER` both use the workspace configuration. 
+You can change each of these as follows:
+
+```
+CAMERA_FEED_SERVER: "http://localhost:3004"
+...
+MQTT_SERVER: "ws://localhost:3002"
 ```
